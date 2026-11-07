@@ -184,7 +184,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.27</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.29</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -651,12 +651,13 @@
             if (sub === 'history') {
                 const allHistoryDates = [...new Set(state.history.map(h => h.date))].sort().reverse();
 
-                const startDate = document.getElementById('histStartDate')?.value || '';
-                const endDate = document.getElementById('histEndDate')?.value || '';
+                const startMonth = document.getElementById('histStartMonth')?.value || ''; // 形式: 'YYYY-MM'
+                const endMonth = document.getElementById('histEndMonth')?.value || '';     // 形式: 'YYYY-MM'
 
                 const filteredDates = allHistoryDates.filter(date => {
-                    if (startDate && date < startDate) return false;
-                    if (endDate && date > endDate) return false;
+                    const yearMonth = date.slice(0, 7); // 'YYYY-MM'
+                    if (startMonth && yearMonth < startMonth) return false;
+                    if (endMonth && yearMonth > endMonth) return false;
                     return true;
                 }).sort(); // 古い順に並べる
 
@@ -675,19 +676,19 @@
                             </button>
                         </div>
 
-                        <!-- 日付範囲の絞り込みフィルター（no-print） -->
+                        <!-- 年月範囲の絞り込みフィルター（no-print） -->
                         <div class="no-print bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 space-y-2">
                             <div class="flex justify-between items-center text-xs text-slate-300">
-                                <span class="font-bold">📅 表示・印刷する日付の範囲指定</span>
+                                <span class="font-bold">📅 表示・印刷する年月の範囲指定</span>
                                 <button onclick="resetDateFilter()" class="text-slate-400 hover:text-white underline text-[10px]">リセット</button>
                             </div>
                             <div class="flex items-center gap-2 text-xs">
                                 <div class="flex-1">
-                                    <input type="date" id="histStartDate" onchange="render()" value="${startDate}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                    <input type="month" id="histStartMonth" onchange="render()" value="${startMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
                                 </div>
                                 <span class="text-slate-400">〜</span>
                                 <div class="flex-1">
-                                    <input type="date" id="histEndDate" onchange="render()" value="${endDate}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                    <input type="month" id="histEndMonth" onchange="render()" value="${endMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
                                 </div>
                             </div>
                         </div>
@@ -844,8 +845,8 @@
         }
 
         function resetDateFilter() {
-            const startInput = document.getElementById('histStartDate');
-            const endInput = document.getElementById('histEndDate');
+            const startInput = document.getElementById('histStartMonth');
+            const endInput = document.getElementById('histEndMonth');
             if (startInput) startInput.value = '';
             if (endInput) endInput.value = '';
             render();
@@ -1139,25 +1140,34 @@
                 return item;
             });
 
-            let displayCategory = '';
-            if (state.selectedCategory === 'すべて') {
-                displayCategory = 'すべて';
-            } else {
-                displayCategory = state.sessionCategories.join(' / ');
-            }
-
             const targetCategories = state.selectedCategory === 'すべて' 
                 ? state.categories 
                 : state.sessionCategories;
 
+            const isAllCategories = state.selectedCategory === 'すべて' || 
+                (state.categories.every(cat => targetCategories.includes(cat)));
+
+            let displayCategory = '';
+            if (isAllCategories) {
+                displayCategory = 'すべて';
+            } else {
+                displayCategory = targetCategories.join(' / ');
+            }
+
             const snapshotItems = state.items.filter(item => targetCategories.includes(item.category));
 
-            const historyEntry = {
-                date: todayStr,
-                category: displayCategory,
-                items: JSON.parse(JSON.stringify(snapshotItems))
-            };
-            state.history.unshift(historyEntry);
+            const existingIndex = state.history.findIndex(h => h.date === todayStr);
+            if (existingIndex !== -1) {
+                state.history[existingIndex].category = displayCategory;
+                state.history[existingIndex].items = JSON.parse(JSON.stringify(snapshotItems));
+            } else {
+                const historyEntry = {
+                    date: todayStr,
+                    category: displayCategory,
+                    items: JSON.parse(JSON.stringify(snapshotItems))
+                };
+                state.history.unshift(historyEntry);
+            }
 
             if (state.history.length > 50) {
                 state.history = state.history.slice(0, 50);
@@ -1166,7 +1176,7 @@
             saveData();
 
             if (state.selectedCategory !== 'すべて') {
-                const remainingCategories = state.categories.filter(cat => !state.sessionCategories.includes(cat));
+                const remainingCategories = state.categories.filter(cat => !targetCategories.includes(cat));
                 const nextCategory = remainingCategories.find(cat => state.items.some(item => item.category === cat));
 
                 if (nextCategory) {
@@ -1183,7 +1193,7 @@
                 state.isCrossChecking = false;
             }
 
-            state.lastCheckedCategories = [...state.sessionCategories];
+            state.lastCheckedCategories = [...targetCategories];
             state.sessionCategories = [];
             state.tempCounts = {};
             state.promptedCrossCheck = false;
