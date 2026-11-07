@@ -5,6 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Boo³ 在庫管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- BIZ UDPゴシックをGoogle Fontsから読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* 印刷時の専用レイアウト定義（BIZ UDPゴシック・商品名10pt・日付15マス） */
+        @media print {
+            .no-print, button, input, select, header, nav, #historyContainer {
+                display: none !important;
+            }
+            
+            body {
+                background: #fff !important;
+                color: #000 !important;
+                margin: 0 !important;
+                padding: 5mm !important;
+                font-family: "BIZ UDPGothic", "BIZ UDGothic", sans-serif !important;
+            }
+
+            #app {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            /* 印刷時に出現するカテゴリごとのページコンテナ */
+            .print-category-page {
+                display: block !important;
+                page-break-before: always;
+                break-before: page;
+                margin-bottom: 20mm;
+            }
+            .print-category-page:first-of-type {
+                page-break-before: avoid;
+                break-before: avoid;
+            }
+
+            /* 印刷時のタイトル */
+            .print-title {
+                display: block !important;
+                text-align: center;
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 10px;
+                border-bottom: 2px solid #000;
+                padding-bottom: 4px;
+                color: #000 !important;
+                font-family: "BIZ UDPGothic", "BIZ UDGothic", sans-serif !important;
+            }
+
+            /* マトリックス在庫表のテーブルデザイン */
+            .matrix-table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                margin-top: 5px;
+                table-layout: fixed !important;
+                font-family: "BIZ UDPGothic", "BIZ UDGothic", sans-serif !important;
+            }
+
+            .matrix-table th, .matrix-table td {
+                border: 1px solid #333 !important;
+                padding: 4px 1px !important;
+                font-size: 7.5pt !important;
+                color: #000 !important;
+                text-align: center;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                height: 23px !important;
+                font-family: "BIZ UDPGothic", "BIZ UDGothic", sans-serif !important;
+            }
+
+            .matrix-table th {
+                background-color: #f0f0f0 !important;
+                font-weight: bold;
+                -webkit-print-color-adjust: exact;
+            }
+
+            /* 商品名列：文字サイズ10pt・太字解除（normal） */
+            .col-item {
+                width: 22% !important;
+                text-align: left !important;
+                padding-left: 4px !important;
+                white-space: nowrap !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
+            }
+
+            /* 定数および15マス分の日付列 */
+            .col-fixed {
+                width: 4.6% !important;
+            }
+        }
+
+        .print-category-page {
+            display: none;
+        }
+        .print-title {
+            display: none;
+        }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
 
@@ -15,20 +117,13 @@
     <script>
       // --- アプリの状態管理 ---
         let state = {
-            screen: 'home', // 'home', 'inventory', 'confirm', 'shortage', 'history', 'settings', 'edit_item'
-
-            settingsSub: 'menu', // 設定メニュー内の表示状態 ('menu', 'locations', 'items', 'history', 'title', 'backup')
-
+            screen: 'home',
+            settingsSub: 'menu',
             appTitle: localStorage.getItem('bar_app_title') || 'Boo³ 在庫管理',
             categories: JSON.parse(localStorage.getItem('bar_categories')) || ['シャンパン・ワイン', 'ボトル'],
-
             selectedCategory: 'すべて',
             locations: JSON.parse(localStorage.getItem('bar_locations')) || ['バックヤード', 'カウンター下'],
-            
-            // ── 🔍 検索キーワード用の状態 ──
             itemSearchKeyword: '', 
-            
-            // ── 🔄 起動時に今日のリアルタイム日付をデフォルトにする ──
             items: (() => {
                 const saved = localStorage.getItem('bar_items');
                 const d = new Date();
@@ -49,17 +144,14 @@
                     { id: 2, name: '山崎 12年', category: 'ボトル', image: '', standard: 2, counts: { 'バックヤード': 2, 'カウンター下': 0 }, lastChecked: todayStr }
                 ];
             })(),
-
             history: JSON.parse(localStorage.getItem('bar_history')) || [],
-            tempCounts: {}, // 在庫確認中の一時入力値
-            editingItemId: null, // 編集中の商品ID
-
-            inventoryDate: '',          // 在庫確認日の保持用
-            promptedCrossCheck: false,   // 相互確認のループ防止用フラグ
-            isCrossChecking: false,      //
+            tempCounts: {},
+            editingItemId: null,
+            inventoryDate: '',
+            promptedCrossCheck: false,
+            isCrossChecking: false,
             sessionCategories: []
         };
-
 
         function saveData() {
             localStorage.setItem('bar_items', JSON.stringify(state.items));
@@ -69,7 +161,6 @@
             localStorage.setItem('bar_app_title', state.appTitle);
         }
 
-        // --- 画面描画ルーター ---
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = '';
@@ -86,7 +177,6 @@
             else if (state.screen === 'edit_item') app.innerHTML = renderEditItem();
         }
   
-        // 1. ホーム画面
         function renderHome() {
             const todayStr = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
 
@@ -94,7 +184,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.12.14</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.27</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -125,10 +215,8 @@
             `;
         }
 
-        // 2 & 3. 在庫リスト・増減入力画面
         function renderInventory() {
             const filteredItems = state.items.filter(item => state.selectedCategory === 'すべて' || item.category === state.selectedCategory);
-            
             const d = new Date();
             const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             state.inventoryDate = todayStr;
@@ -196,7 +284,6 @@
             `;
         }
 
-        // --- アプリタイトル変更用 ---
         function updateAppTitle() {
             const inputVal = document.getElementById('newAppTitleInput').value.trim();
             if (!inputVal) {
@@ -209,7 +296,6 @@
             alert('アプリのタイトルを更新しました！');
         }
 
-        // --- カテゴリ追加用 ---
         function addCategory() {
             const inputElem = document.getElementById('newCategoryInput');
             const newCat = inputElem.value.trim();
@@ -226,20 +312,18 @@
             render();
         }
 
-        // --- カテゴリ削除用 ---
         function deleteCategory(cat) {
             if (state.categories.length <= 1) {
                 alert('カテゴリは最低1つ必要です');
                 return;
             }
-            if (confirm(`カテゴリ「${cat}」を削除しますか？\n（※そのカテゴリに属する商品は「すべて」から確認できます）`)) {
+            if (confirm(`カテゴリ「${cat}」を削除しますか？`)) {
                 state.categories = state.categories.filter(c => c !== cat);
                 saveData();
                 render();
             }
         }
 
-        // --- 在庫確認を途中でやめて戻る際のリセット処理 ---
         function cancelInventory() {
             state.isCrossChecking = false;
             state.sessionCategories = [];
@@ -249,14 +333,12 @@
             navigate('home');
         }
 
-        // --- 画面遷移用関数 ---
         function navigate(screenName) {
             state.screen = screenName;
             render();
             window.scrollTo(0, 0);
         }
 
-        // --- 設定メニューのサブ画面を切り替える関数 ---
         function setSettingsSub(subName) {
             state.settingsSub = subName;
             if (subName !== 'items') {
@@ -266,15 +348,12 @@
             window.scrollTo(0, 0);
         }
 
-        // --- 商品検索キーワードの更新用関数 ---
         function filterItems(keyword) {
             state.itemSearchKeyword = keyword.trim();
-            
             const listContainer = document.getElementById('itemListContainer');
             if (listContainer) {
                 listContainer.innerHTML = renderFilteredItemList();
             }
-            
             const countElem = document.getElementById('itemCountSpan');
             if (countElem) {
                 const filtered = state.items.filter(item => {
@@ -285,7 +364,6 @@
             }
         }
 
-        // --- 絞り込み済みのリストHTMLを生成するヘルパー関数（ドラッグ＆ドロップ対応） ---
         function renderFilteredItemList() {
             const filtered = state.items.filter(item => {
                 if (!state.itemSearchKeyword) return true;
@@ -326,20 +404,18 @@
             }).join('');
         }
 
-        // --- ドラッグ＆ドロップ並べ替えのロジック ---
         let draggedItemId = null;
 
         function onDragStart(event, id) {
             draggedItemId = id;
             event.dataTransfer.effectAllowed = 'move';
-            // ドラッグ中の要素を半透明にする
             setTimeout(() => {
                 event.target.classList.add('opacity-40');
             }, 0);
         }
 
         function onDragOver(event) {
-            event.preventDefault(); // ドロップを受け入れるために必須
+            event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
         }
 
@@ -360,8 +436,6 @@
 
         function onDrop(event, targetId) {
             event.preventDefault();
-            
-            // ドラッグ終了時の見た目リセット
             const cards = document.querySelectorAll('[draggable="true"]');
             cards.forEach(c => {
                 c.classList.remove('opacity-40', 'border-amber-400', 'bg-slate-700/80');
@@ -374,27 +448,20 @@
 
             if (fromIndex === -1 || toIndex === -1) return;
 
-            // 配列からドラッグされた要素を一旦抜き出す
             const [movedItem] = state.items.splice(fromIndex, 1);
-            // ドロップ先の位置に挿入
             state.items.splice(toIndex, 0, movedItem);
 
             draggedItemId = null;
-
-            // 変更を保存
             saveData();
 
-            // リスト部分の再描画（検索キーワードやフォーカスを維持）
             const listContainer = document.getElementById('itemListContainer');
             if (listContainer) {
                 listContainer.innerHTML = renderFilteredItemList();
             }
         }
       
-        // --- カテゴリ選択＆在庫確認開始用関数 ---
         function selectCategory(cat) {
             state.selectedCategory = cat;
-            
             const d = new Date();
             const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -424,7 +491,6 @@
             navigate('inventory');
         }
 
-        // --- 在庫確認画面での数量増減処理 ---
         function adjustCount(itemId, loc, amount) {
             if (!state.tempCounts[itemId]) {
                 state.tempCounts[itemId] = {};
@@ -440,7 +506,6 @@
         function renderSettings() {
             const sub = state.settingsSub || 'menu';
 
-            // ① 設定のトップメニュー画面
             if (sub === 'menu') {
                 return `
                     <div class="space-y-4">
@@ -462,7 +527,7 @@
                             </button>
 
                             <button onclick="setSettingsSub('history')" class="w-full p-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-bold text-sm shadow flex items-center justify-between transition">
-                                <span class="flex items-center space-x-2"><span>📜</span><span>過去の在庫履歴</span></span>
+                                <span class="flex items-center space-x-2"><span>📜</span><span>在庫履歴</span></span>
                                 <span class="text-slate-400">→</span>
                             </button>
 
@@ -480,7 +545,6 @@
                 `;
             }
 
-            // ② 保管場所とカテゴリの管理画面
             if (sub === 'locations') {
                 return `
                     <div class="space-y-4">
@@ -525,7 +589,6 @@
                 `;
             }
 
-            // ③ 商品の登録・編集画面
             if (sub === 'items') {
                 return `
                     <div class="space-y-4">
@@ -559,7 +622,6 @@
                             <button onclick="saveBulkItems()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shadow mt-2">入力した商品を一括登録する</button>
                         </div>
 
-                      <!-- 登録済み商品の一覧・編集（ドラッグ＆ドロップ対応） -->
                         <div class="space-y-3">
                             <div class="flex justify-between items-center">
                                 <h3 class="text-sm font-bold text-slate-200">📋 登録済み商品の一覧・編集</h3>
@@ -577,7 +639,6 @@
                                 <input type="text" id="itemSearchInput" value="${state.itemSearchKeyword || ''}" oninput="filterItems(this.value)" placeholder="🔍 商品名で検索..." class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400">
                             </div>
 
-                            <!-- 絞り込みを行ったリストの表示（id="itemListContainer" を付与） -->
                             <div id="itemListContainer" class="space-y-2 max-h-96 overflow-y-auto pr-1">
                                 ${renderFilteredItemList()}
                             </div>
@@ -588,19 +649,54 @@
 
             // ④ 履歴画面
             if (sub === 'history') {
+                const allHistoryDates = [...new Set(state.history.map(h => h.date))].sort().reverse();
+
+                const startDate = document.getElementById('histStartDate')?.value || '';
+                const endDate = document.getElementById('histEndDate')?.value || '';
+
+                const filteredDates = allHistoryDates.filter(date => {
+                    if (startDate && date < startDate) return false;
+                    if (endDate && date > endDate) return false;
+                    return true;
+                }).sort(); // 古い順に並べる
+
+                const displayDates = [...filteredDates];
+                while (displayDates.length < 15) {
+                    displayDates.push('');
+                }
+
                 return `
                     <div class="space-y-4">
                         <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                             <button onclick="setSettingsSub('menu')" class="text-sm text-slate-400 hover:text-white">← 設定メニューへ</button>
-                            <h2 class="font-bold text-amber-400">過去の在庫履歴</h2>
-                            <span></span>
+                            <h2 class="font-bold text-amber-400">在庫履歴</h2>
+                            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition">
+                                🖨️ 在庫表を印刷 / PDF化
+                            </button>
+                        </div>
+
+                        <!-- 日付範囲の絞り込みフィルター（no-print） -->
+                        <div class="no-print bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 space-y-2">
+                            <div class="flex justify-between items-center text-xs text-slate-300">
+                                <span class="font-bold">📅 表示・印刷する日付の範囲指定</span>
+                                <button onclick="resetDateFilter()" class="text-slate-400 hover:text-white underline text-[10px]">リセット</button>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <div class="flex-1">
+                                    <input type="date" id="histStartDate" onchange="render()" value="${startDate}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                </div>
+                                <span class="text-slate-400">〜</span>
+                                <div class="flex-1">
+                                    <input type="date" id="histEndDate" onchange="render()" value="${endDate}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                </div>
+                            </div>
                         </div>
 
                         <div class="space-y-3">
                             ${state.history.length === 0 ? `
                                 <p class="text-xs text-slate-500">まだ履歴がありません。</p>
                             ` : `
-                                <div class="space-y-2 max-h-[75vh] overflow-y-auto pr-1">
+                                <div id="historyContainer" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                                     ${state.history.map((hist, index) => `
                                         <div class="bg-slate-800 p-3 rounded-xl text-xs space-y-2 border border-slate-700/50">
                                             <div class="flex justify-between items-center text-slate-300 font-bold border-b border-slate-700 pb-1">
@@ -614,15 +710,16 @@
                                             <div id="hist-detail-${index}" class="hidden space-y-2 pt-1">
                                                 ${hist.items.map(item => {
                                                     const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                                                    const isShortage = total < item.standard;
                                                     const locDetails = Object.entries(item.counts || {}).map(([loc, cnt] ) => `${loc}:${cnt}本`).join(' / ');
                                                     return `
-                                                        <div class="bg-slate-900 p-2 rounded flex justify-between items-center text-[11px]">
+                                                        <div class="bg-slate-900 p-2 rounded flex justify-between items-center text-[11px] ${isShortage ? 'border border-rose-500/40 bg-rose-950/20' : ''}">
                                                             <div>
                                                                 <p class="font-bold text-slate-200">${item.name}</p>
                                                                 <p class="text-[10px] text-slate-400">📍 ${locDetails}</p>
                                                             </div>
                                                             <div class="text-right">
-                                                                <span class="text-amber-400 font-bold">合計 ${total}本</span>
+                                                                <span class="${isShortage ? 'text-rose-400 font-bold' : 'text-amber-400 font-bold'}">合計 ${total}本</span>
                                                                 <span class="text-[10px] text-slate-500 block">定数 ${item.standard}</span>
                                                             </div>
                                                         </div>
@@ -634,11 +731,73 @@
                                 </div>
                             `}
                         </div>
+
+                        <!-- 🖨️ 【印刷専用】BIZ UDPゴシック・商品名標準10pt・日付〇/▽表記・15マス幅のマトリックス表 -->
+                        <div id="printMatrixContainer">
+                            ${state.categories.map(cat => {
+                                const targetItems = state.items.filter(item => item.category === cat);
+                                
+                                const displayRows = [...targetItems];
+                                while (displayRows.length < 15) {
+                                    displayRows.push({ name: '', standard: '', isEmptyRow: true });
+                                }
+
+                                return `
+                                    <div class="print-category-page">
+                                        <div class="print-title">${cat} 在庫表</div>
+                                        <table class="matrix-table w-full text-xs border-collapse">
+                                            <thead>
+                                                <tr class="bg-slate-900 text-slate-300">
+                                                    <th class="col-item p-2 border border-slate-700">商品</th>
+                                                    <th class="col-fixed p-2 border border-slate-700 text-center">定数</th>
+                                                    ${displayDates.map(date => {
+                                                        let label = '';
+                                                        if (date) {
+                                                            const parts = date.split('-'); // [YYYY, MM, DD]
+                                                            if (parts.length === 3) {
+                                                                label = `${parseInt(parts[1])}/${parseInt(parts[2])}`; // 〇/▽ の形式
+                                                            }
+                                                        }
+                                                        return `<th class="col-fixed p-2 border border-slate-700 text-center">${label}</th>`;
+                                                    }).join('')}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${displayRows.map(item => `
+                                                    <tr class="border-b border-slate-700/50">
+                                                        <td class="col-item p-2 text-slate-200 border border-slate-700/50">${item.name || ''}</td>
+                                                        <td class="col-fixed p-2 text-center text-amber-400 font-bold border border-slate-700/50">${item.standard !== undefined && item.standard !== '' ? item.standard : ''}</td>
+                                                        ${displayDates.map(date => {
+                                                            if (!date || item.isEmptyRow) {
+                                                                return `<td class="col-fixed p-2 text-center border border-slate-700/50"></td>`;
+                                                            }
+                                                            const histEntry = state.history.find(h => h.date === date);
+                                                            let countVal = '';
+                                                            if (histEntry) {
+                                                                const foundItem = histEntry.items.find(i => i.id === item.id);
+                                                                if (foundItem) {
+                                                                    countVal = Object.values(foundItem.counts || {}).reduce((a, b) => a + b, 0);
+                                                                }
+                                                            }
+                                                            const isShortage = countVal !== '' && countVal < item.standard;
+                                                            return `
+                                                                <td class="col-fixed p-2 text-center border border-slate-700/50 ${isShortage ? 'text-rose-600 font-bold' : 'text-slate-900'}">
+                                                                    ${countVal}
+                                                                </td>
+                                                            `;
+                                                        }).join('')}
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
                     </div>
                 `;
             }
 
-            // ⑤ タイトル変更画面
             if (sub === 'title') {
                 return `
                     <div class="space-y-4">
@@ -659,7 +818,6 @@
                 `;
             }
 
-            // ⑥ データ共有・バックアップ画面
             if (sub === 'backup') {
                 return `
                     <div class="space-y-4">
@@ -685,7 +843,14 @@
             }
         }
 
-        // --- 商品の編集画面 ---
+        function resetDateFilter() {
+            const startInput = document.getElementById('histStartDate');
+            const endInput = document.getElementById('histEndDate');
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
+            render();
+        }
+
         function startEditItem(id) {
             state.editingItemId = id;
             state.screen = 'edit_item';
@@ -773,7 +938,6 @@
             }
         }
 
-        // 🗑️ 履歴を1件だけ削除する関数
         function deleteHistoryItem(index) {
             const target = state.history[index];
             const dateStr = target ? target.date : 'この履歴';
@@ -786,7 +950,6 @@
             }
         }
 
-        // --- ロケーション管理 ---
         function addLocation() {
             const name = document.getElementById('newLocName').value.trim();
             if (!name) return;
@@ -818,14 +981,6 @@
             }
         }
 
-        // --- 入力制限（全角・半角） ---
-        function toZenakuName(val) {
-            return val.replace(/[A-Za-z0-9 !'-]/g, function(s) {
-                if (s === ' ') return ' ';
-                return String.fromCharCode(s.charCodeAt(0) + 0xFEE0);
-            });
-        }
-
         function toHankakuNumber(val) {
             let hankaku = val.replace(/[０-９]/g, function(s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -833,7 +988,6 @@
             return hankaku.replace(/[^0-9]/g, '');
         }
 
-        // --- 一括登録用の行追加・削除 ---
         function addBulkRow() {
             const container = document.getElementById('bulk-inputs');
             const rowCount = container.children.length + 1;
@@ -856,7 +1010,6 @@
             updateRowNumbers();
         }
 
-        // --- 履歴の内訳の開閉切り替え ---
         function toggleHistoryDetail(index) {
             const detailEl = document.getElementById(`hist-detail-${index}`);
             const btnEl = document.getElementById(`hist-btn-${index}`);
@@ -924,7 +1077,6 @@
             }
         }
 
-        // 4. 確認画面
         function renderConfirm() {
             const filteredItems = state.items.filter(item => state.selectedCategory === 'すべて' || item.category === state.selectedCategory);
             const d = new Date();
@@ -972,7 +1124,6 @@
             `;
         }     
 
-        // --- 在庫管理完了・不足分画面へ進む処理 ---
         function completeInventory() {
             const d = new Date();
             const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1039,7 +1190,6 @@
             navigate('shortage');
         }
 
-        // 5. 不足分のみの表示
         function renderShortage() {
             const filteredItems = state.items.filter(item => {
                 if (state.selectedCategory === 'すべて' || (!state.lastCheckedCategories || state.lastCheckedCategories.length === 0)) {
@@ -1102,7 +1252,6 @@
             `;
         }
 
-        // --- データの書き出し（エクスポート） ---
         function exportData() {
             const data = {
                 items: state.items,
@@ -1113,16 +1262,13 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            
             const d = new Date();
             const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            
             a.download = `bar_inventory_backup_${todayStr}.json`;
             a.click();
             URL.revokeObjectURL(url);
         }
 
-        // --- データの読み込み（インポート） ---
         function importData(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1150,7 +1296,6 @@
             reader.readAsText(file);
         }
 
-        // 初期描画
         render();
     </script>
 </body>
