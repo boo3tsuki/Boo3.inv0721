@@ -184,7 +184,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.29</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.30</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -654,8 +654,17 @@
                 const startMonth = document.getElementById('histStartMonth')?.value || ''; // 形式: 'YYYY-MM'
                 const endMonth = document.getElementById('histEndMonth')?.value || '';     // 形式: 'YYYY-MM'
 
+                // 1. 履歴カード一覧用のフィルタリング
+                const filteredHistoryList = state.history.filter(hist => {
+                    const yearMonth = hist.date.slice(0, 7);
+                    if (startMonth && yearMonth < startMonth) return false;
+                    if (endMonth && yearMonth > endMonth) return false;
+                    return true;
+                });
+
+                // 2. マトリックス表用の日付フィルタリング
                 const filteredDates = allHistoryDates.filter(date => {
-                    const yearMonth = date.slice(0, 7); // 'YYYY-MM'
+                    const yearMonth = date.slice(0, 7);
                     if (startMonth && yearMonth < startMonth) return false;
                     if (endMonth && yearMonth > endMonth) return false;
                     return true;
@@ -695,20 +704,22 @@
 
                         <div class="space-y-3">
                             ${state.history.length === 0 ? `
-                                <p class="text-xs text-slate-500">まだ履歴がありません。</p>
+                                <p class="text-xs text-slate-500 text-center py-4">まだ履歴がありません。</p>
+                            ` : filteredHistoryList.length === 0 ? `
+                                <p class="text-xs text-amber-400/90 text-center py-6 bg-slate-800/50 rounded-xl border border-slate-700/50">指定された期間の履歴はありません。</p>
                             ` : `
                                 <div id="historyContainer" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                                    ${state.history.map((hist, index) => `
+                                    ${filteredHistoryList.map((hist, index) => `
                                         <div class="bg-slate-800 p-3 rounded-xl text-xs space-y-2 border border-slate-700/50">
                                             <div class="flex justify-between items-center text-slate-300 font-bold border-b border-slate-700 pb-1">
                                                 <span>📅 ${hist.date} (${hist.category})</span>
                                                 <div class="flex items-center space-x-2">
-                                                    <button onclick="toggleHistoryDetail(${index})" class="text-amber-400 hover:underline text-[11px]" id="hist-btn-${index}">内訳を見る ▼</button>
-                                                    <button onclick="deleteHistoryItem(${index})" class="text-rose-400 hover:text-rose-300 hover:underline text-[11px] px-1.5 py-0.5 bg-rose-500/10 rounded border border-rose-500/20">削除</button>
+                                                    <button onclick="toggleHistoryDetail('${hist.date}')" class="text-amber-400 hover:underline text-[11px]" id="hist-btn-${hist.date.replace(/-/g, '')}">内訳を見る ▼</button>
+                                                    <button onclick="deleteHistoryItemByDate('${hist.date}')" class="text-rose-400 hover:text-rose-300 hover:underline text-[11px] px-1.5 py-0.5 bg-rose-500/10 rounded border border-rose-500/20">削除</button>
                                                 </div>
                                             </div>
 
-                                            <div id="hist-detail-${index}" class="hidden space-y-2 pt-1">
+                                            <div id="hist-detail-${hist.date.replace(/-/g, '')}" class="hidden space-y-2 pt-1">
                                                 ${hist.items.map(item => {
                                                     const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
                                                     const isShortage = total < item.standard;
@@ -939,12 +950,9 @@
             }
         }
 
-        function deleteHistoryItem(index) {
-            const target = state.history[index];
-            const dateStr = target ? target.date : 'この履歴';
-            
+        function deleteHistoryItemByDate(dateStr) {
             if (confirm(`【${dateStr}】の確認履歴を本当に削除しますか？`)) {
-                state.history.splice(index, 1);
+                state.history = state.history.filter(h => h.date !== dateStr);
                 saveData();
                 alert('履歴を1件削除しました。');
                 render();
@@ -1011,9 +1019,10 @@
             updateRowNumbers();
         }
 
-        function toggleHistoryDetail(index) {
-            const detailEl = document.getElementById(`hist-detail-${index}`);
-            const btnEl = document.getElementById(`hist-btn-${index}`);
+        function toggleHistoryDetail(dateStr) {
+            const safeKey = dateStr.replace(/-/g, '');
+            const detailEl = document.getElementById(`hist-detail-${safeKey}`);
+            const btnEl = document.getElementById(`hist-btn-${safeKey}`);
             if (detailEl.classList.contains('hidden')) {
                 detailEl.classList.remove('hidden');
                 btnEl.textContent = '内訳を閉じる ▲';
