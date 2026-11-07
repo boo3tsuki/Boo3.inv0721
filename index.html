@@ -124,6 +124,8 @@
             selectedCategory: 'すべて',
             locations: JSON.parse(localStorage.getItem('bar_locations')) || ['バックヤード', 'カウンター下'],
             itemSearchKeyword: '', 
+            histStartMonth: '',
+            histEndMonth: '',
             items: (() => {
                 const saved = localStorage.getItem('bar_items');
                 const d = new Date();
@@ -184,7 +186,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.30</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.31</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -503,6 +505,22 @@
             render();
         }
 
+        function updateHistStartMonth(val) {
+            state.histStartMonth = val;
+            render();
+        }
+
+        function updateHistEndMonth(val) {
+            state.histEndMonth = val;
+            render();
+        }
+
+        function resetDateFilter() {
+            state.histStartMonth = '';
+            state.histEndMonth = '';
+            render();
+        }
+
         function renderSettings() {
             const sub = state.settingsSub || 'menu';
 
@@ -651,8 +669,8 @@
             if (sub === 'history') {
                 const allHistoryDates = [...new Set(state.history.map(h => h.date))].sort().reverse();
 
-                const startMonth = document.getElementById('histStartMonth')?.value || ''; // 形式: 'YYYY-MM'
-                const endMonth = document.getElementById('histEndMonth')?.value || '';     // 形式: 'YYYY-MM'
+                const startMonth = state.histStartMonth || '';
+                const endMonth = state.histEndMonth || '';
 
                 // 1. 履歴カード一覧用のフィルタリング
                 const filteredHistoryList = state.history.filter(hist => {
@@ -693,11 +711,11 @@
                             </div>
                             <div class="flex items-center gap-2 text-xs">
                                 <div class="flex-1">
-                                    <input type="month" id="histStartMonth" onchange="render()" value="${startMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                    <input type="month" id="histStartMonth" onchange="updateHistStartMonth(this.value)" oninput="updateHistStartMonth(this.value)" value="${startMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
                                 </div>
                                 <span class="text-slate-400">〜</span>
                                 <div class="flex-1">
-                                    <input type="month" id="histEndMonth" onchange="render()" value="${endMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                    <input type="month" id="histEndMonth" onchange="updateHistEndMonth(this.value)" oninput="updateHistEndMonth(this.value)" value="${endMonth}" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
                                 </div>
                             </div>
                         </div>
@@ -853,14 +871,6 @@
                     </div>
                 `;
             }
-        }
-
-        function resetDateFilter() {
-            const startInput = document.getElementById('histStartMonth');
-            const endInput = document.getElementById('histEndMonth');
-            if (startInput) startInput.value = '';
-            if (endInput) endInput.value = '';
-            render();
         }
 
         function startEditItem(id) {
