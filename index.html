@@ -186,7 +186,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.13.31</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.14.32</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -521,6 +521,71 @@
             render();
         }
 
+        // 不足分画面からの発注リストコピー関数
+        function copyShortageList() {
+            const filteredItems = state.items.filter(item => {
+                if (state.selectedCategory === 'すべて' || (!state.lastCheckedCategories || state.lastCheckedCategories.length === 0)) {
+                    return true;
+                }
+                return state.lastCheckedCategories.includes(item.category);
+            });
+
+            const shortageItems = filteredItems.filter(item => {
+                const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                return total < item.standard;
+            });
+
+            if (shortageItems.length === 0) {
+                alert('現在、不足している商品はありません。');
+                return;
+            }
+
+            const d = new Date();
+            const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+            
+            let text = `【発注リスト (${dateStr})】\n`;
+            shortageItems.forEach(item => {
+                const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                const diff = item.standard - total;
+                text += `・${item.name} : 不足 ${diff}本 (現在庫:${total}/定数:${item.standard})\n`;
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('発注リストをコピーしました！LINEやメモに貼り付けて使えます。');
+            }).catch(err => {
+                alert('コピーに失敗しました。お使いのブラウザの設定をご確認ください。');
+            });
+        }
+
+        // 過去の履歴画面からの発注リストコピー関数
+        function copyHistoryShortage(dateStr) {
+            const hist = state.history.find(h => h.date === dateStr);
+            if (!hist) return;
+
+            const shortageItems = hist.items.filter(item => {
+                const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                return total < item.standard;
+            });
+
+            if (shortageItems.length === 0) {
+                alert(`【${hist.date} (${hist.category})】の時点では不足している商品はありませんでした。`);
+                return;
+            }
+
+            let text = `【発注リスト (${hist.date} - ${hist.category})】\n`;
+            shortageItems.forEach(item => {
+                const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
+                const diff = item.standard - total;
+                text += `・${item.name} : 不足 ${diff}本 (現在庫:${total}/定数:${item.standard})\n`;
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`【${hist.date}】の発注リストをコピーしました！LINEやメモに貼り付けて使えます。`);
+            }).catch(err => {
+                alert('コピーに失敗しました。お使いのブラウザの設定をご確認ください。');
+            });
+        }
+
         function renderSettings() {
             const sub = state.settingsSub || 'menu';
 
@@ -731,7 +796,8 @@
                                         <div class="bg-slate-800 p-3 rounded-xl text-xs space-y-2 border border-slate-700/50">
                                             <div class="flex justify-between items-center text-slate-300 font-bold border-b border-slate-700 pb-1">
                                                 <span>📅 ${hist.date} (${hist.category})</span>
-                                                <div class="flex items-center space-x-2">
+                                                <div class="flex items-center space-x-1.5">
+                                                    <button onclick="copyHistoryShortage('${hist.date}')" class="text-blue-400 hover:text-blue-300 hover:underline text-[11px] px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">📋 コピー</button>
                                                     <button onclick="toggleHistoryDetail('${hist.date}')" class="text-amber-400 hover:underline text-[11px]" id="hist-btn-${hist.date.replace(/-/g, '')}">内訳を見る ▼</button>
                                                     <button onclick="deleteHistoryItemByDate('${hist.date}')" class="text-rose-400 hover:text-rose-300 hover:underline text-[11px] px-1.5 py-0.5 bg-rose-500/10 rounded border border-rose-500/20">削除</button>
                                                 </div>
@@ -1246,7 +1312,12 @@
                         </div>
                     ` : `
                         <div class="space-y-3">
-                            <p class="text-xs text-rose-400 font-medium">⚠️ 以下の商品は定数を下回っています</p>
+                            <div class="flex justify-between items-center">
+                                <p class="text-xs text-rose-400 font-medium">⚠️ 以下の商品は定数を下回っています</p>
+                                <button onclick="copyShortageList()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition flex items-center space-x-1">
+                                    <span>📋 発注リストをコピー</span>
+                                </button>
+                            </div>
                             ${shortageItems.map(item => {
                                 const total = Object.values(item.counts || {}).reduce((a, b) => a + b, 0);
                                 const diff = item.standard - total;
