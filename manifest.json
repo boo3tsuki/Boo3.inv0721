@@ -1,0 +1,10 @@
+{
+  "name": "Boo³ 在庫管理",
+  "short_name": "Boo³在庫",
+  "start_url": "/Boo3.inv0721/",
+  "scope": "/Boo3.inv0721/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait"
+}

@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Boo³ 在庫管理</title>
+
+    <!-- 📱 PWA用設定タグ -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <!-- iOS (Safari) 用アプリ化タグ -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Boo³在庫">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- BIZ UDPゴシックをGoogle Fontsから読み込み -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -108,14 +118,23 @@
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans select-none">
 
     <div id="app" class="max-w-md mx-auto p-4 pb-24">
         <!-- 動的に画面が切り替わります -->
     </div>
 
     <script>
-      // --- アプリの状態管理 ---
+        // 📱 PWA Service Worker の登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker 登録成功:', reg.scope))
+                    .catch(err => console.log('Service Worker 登録失敗:', err));
+            });
+        }
+
+        // --- アプリの状態管理 ---
         let state = {
             screen: 'home',
             settingsSub: 'menu',
@@ -186,7 +205,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span class="text-xs text-slate-400">📅 ${todayStr}</span>
-                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.14.32</span>
+                        <span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">v1.14.33</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center min-h-[75vh] space-y-6">
@@ -521,7 +540,6 @@
             render();
         }
 
-        // 不足分画面からの発注リストコピー関数
         function copyShortageList() {
             const filteredItems = state.items.filter(item => {
                 if (state.selectedCategory === 'すべて' || (!state.lastCheckedCategories || state.lastCheckedCategories.length === 0)) {
@@ -557,7 +575,6 @@
             });
         }
 
-        // 過去の履歴画面からの発注リストコピー関数
         function copyHistoryShortage(dateStr) {
             const hist = state.history.find(h => h.date === dateStr);
             if (!hist) return;
@@ -730,14 +747,12 @@
                 `;
             }
 
-            // ④ 履歴画面
             if (sub === 'history') {
                 const allHistoryDates = [...new Set(state.history.map(h => h.date))].sort().reverse();
 
                 const startMonth = state.histStartMonth || '';
                 const endMonth = state.histEndMonth || '';
 
-                // 1. 履歴カード一覧用のフィルタリング
                 const filteredHistoryList = state.history.filter(hist => {
                     const yearMonth = hist.date.slice(0, 7);
                     if (startMonth && yearMonth < startMonth) return false;
@@ -745,13 +760,12 @@
                     return true;
                 });
 
-                // 2. マトリックス表用の日付フィルタリング
                 const filteredDates = allHistoryDates.filter(date => {
                     const yearMonth = date.slice(0, 7);
                     if (startMonth && yearMonth < startMonth) return false;
                     if (endMonth && yearMonth > endMonth) return false;
                     return true;
-                }).sort(); // 古い順に並べる
+                }).sort();
 
                 const displayDates = [...filteredDates];
                 while (displayDates.length < 15) {
@@ -768,7 +782,6 @@
                             </button>
                         </div>
 
-                        <!-- 年月範囲の絞り込みフィルター（no-print） -->
                         <div class="no-print bg-slate-800/80 p-3 rounded-xl border border-slate-700/50 space-y-2">
                             <div class="flex justify-between items-center text-xs text-slate-300">
                                 <span class="font-bold">📅 表示・印刷する年月の範囲指定</span>
@@ -828,7 +841,6 @@
                             `}
                         </div>
 
-                        <!-- 🖨️ 【印刷専用】BIZ UDPゴシック・商品名標準10pt・日付〇/▽表記・15マス幅のマトリックス表 -->
                         <div id="printMatrixContainer">
                             ${state.categories.map(cat => {
                                 const targetItems = state.items.filter(item => item.category === cat);
@@ -849,9 +861,9 @@
                                                     ${displayDates.map(date => {
                                                         let label = '';
                                                         if (date) {
-                                                            const parts = date.split('-'); // [YYYY, MM, DD]
+                                                            const parts = date.split('-');
                                                             if (parts.length === 3) {
-                                                                label = `${parseInt(parts[1])}/${parseInt(parts[2])}`; // 〇/▽ の形式
+                                                                label = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
                                                             }
                                                         }
                                                         return `<th class="col-fixed p-2 border border-slate-700 text-center">${label}</th>`;
